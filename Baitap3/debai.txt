@@ -22,7 +22,9 @@ Nhiệm vụ 2: Đo thông lượng và Xác định tắc nghẽn
 Distribution Switch để tăng băng thông lên 2Gbps.
 • Cấu hình HSRP (Hot Standby Router Protocol) tại Gateway để đảm
 bảo nếu một Router cháy, mạng vẫn chạy.
-• Công thức tính:
+• Công thức tính: 
+5host 200 = 5  x 200 = 1000 1gb 
+
 T otal_T raff ic = Number_of_Hosts × Required_Bandwidth
 Nhiệm vụ 4: Tối ưu luồng dữ liệu
 Áp dụng ACL (Access Control List) kết hợp PBR (Policy Based Routing):
