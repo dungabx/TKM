@@ -1,0 +1,61 @@
+BÀI TẬP THỰC HÀNH SỐ 1: TỐI ƯU HÓA HẠ TẦNG MẠNG
+LIÊN KẾT (BẢO LỘC - TP.HCM)
+1. Đề bài
+Cơ sở Bảo Lộc đã lắp đặt xong các thiết bị cơ bản. Tuy nhiên, trong đợt
+đăng ký học phần vừa qua, hệ thống đã xảy ra hiện tượng "nghẽn cổ chai"
+(bottleneck).
+• Tòa nhà B (Khu học tập): 5 phòng Lab với hơn 200 sinh viên truy
+cập đồng thời khiến luồng dữ liệu bị trễ (Latency cao).
+• Kết nối WAN: Đường truyền về TP.HCM bị quá tải do sinh viên ở
+Ký túc xá sử dụng Youtube/Facebook chiếm dụng hết băng thông của
+hệ thống Quản lý nhân sự tại Tòa nhà A.
+• Hạ tầng: Hiện đang dùng mô hình mạng phẳng (Flat), tất cả chung
+một dải mạng.
+2. Nhiệm vụ của sinh viên
+Nhiệm vụ 1: Thiết kế lại cấu trúc và Chia VLAN
+• Chuyển đổi từ mạng phẳng sang mô hình 3 lớp.
+• Phân chia VLAN cho 4 nhóm: VLAN 10 (Hành chính), VLAN 20 (Phòng
+Lab), VLAN 30 (Ký túc xá), VLAN 99 (Quản trị).
+• Cấu hình VLAN Trunking (802.1Q) giữa các Switch.
+Nhiệm vụ 2: Đo thông lượng và Xác định tắc nghẽn
+• Cấu hình LACP (EtherChannel) gộp 2 đường vật lý giữa Core Switch và
+Distribution Switch để tăng băng thông lên 2Gbps.
+• Cấu hình HSRP (Hot Standby Router Protocol) tại Gateway để đảm
+bảo nếu một Router cháy, mạng vẫn chạy.
+• Công thức tính:
+T otal_T raff ic = Number_of_Hosts × Required_Bandwidth
+Nhiệm vụ 4: Tối ưu luồng dữ liệu
+Áp dụng ACL (Access Control List) kết hợp PBR (Policy Based Routing):
+• Luồng dữ liệu từ VLAN 10 (Hành chính) luôn đi bằng đường truyền ưu
+tiên (Fiber).
+• Luồng dữ liệu từ VLAN 30 (Ký túc xá) bị giới hạn băng thông hoặc đi
+bằng đường truyền phụ vào giờ cao điểm.
+3. Mục đích phải đạt được
+Sau khi hoàn thành bài tập, sinh viên phải chứng minh được các năng lực
+sau:
+(a) Hiểu rõ luồng dữ liệu (Traffic Flow): Phân biệt được luồng nội
+bộ (East-West traffic) và luồng đi ra ngoài (North-South traffic).
+(b) Kỹ năng xử lý tắc nghẽn: Biết cách sử dụng lệnh show interfaces
+để đọc các thông số input/output rate, drops, errors nhằm tìm ra thiết
+bị nào đang bị quá tải.
+(c) Tối ưu hóa thiết bị: Thành thạo cấu hình EtherChannel để mở rộng
+băng thông mà không cần mua thiết bị đắt tiền hơn.
+(d) Tư duy thiết kế thực tế: Hiểu rằng mô hình 3 lớp giúp cô lập lỗi
+(Fault Isolation) tốt hơn mạng phẳng; khi một VLAN gặp sự cố, các khu
+vực khác vẫn hoạt động bình thường.
+4. Bảng kiểm tra kết quả
+Bảng 1: Bảng kiểm tra và xác minh cấu hình mạng
+STT Cấu hình kiểm tra Lệnh kiểm chứng (Cisco
+CLI)
+Trạng thái đạt
+1 Kiểm tra Trunking show interfaces trunk Các VLAN đã được cho
+phép đi qua.
+2 Kiểm tra gộp kênh show etherchannel
+summary
+Trạng thái hiển thị (P) –
+Bundled in port-channel.
+3 Kiểm tra dự phòng show standby brief Xác định được Router Active và Standby.
+4 Kiểm tra độ trễ ping [IP_Server] size
+1500
+Thời gian phản hồi ổn định,
+không mất gói.
