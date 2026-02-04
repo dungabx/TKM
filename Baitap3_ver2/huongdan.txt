@@ -1,0 +1,119 @@
+Để triển khai mô hình Spine-Leaf + VXLAN bằng **Mininet** kết hợp với **FRRouting (FRR)** cho bài tập của bạn, bạn cần thực hiện theo các bước có hệ thống sau đây:
+
+---
+
+## 1. Chuẩn bị môi trường hệ thống
+
+Trước tiên, bạn cần một môi trường Linux (thường là Ubuntu) đã cài đặt sẵn các công cụ lõi.
+
+* **Cài đặt Mininet:** Cài đặt gói cơ bản để có `mn` và các thư viện Python.
+* **Cài đặt Open vSwitch (OVS):** Đây là các Switch ảo sẽ chịu trách nhiệm đóng gói VXLAN.
+* **Cài đặt FRRouting (FRR):** Cài đặt gói FRR trên máy Host để các Node trong Mininet có thể gọi các tiến trình định tuyến.
+* **Kích hoạt IP Forwarding:** Chạy lệnh `sudo sysctl -w net.ipv4.ip_forward=1` để cho phép các node chuyển tiếp gói tin Layer 3.
+
+---
+
+## 2. Xây dựng Topology bằng Python Script
+
+Thay vì dùng lệnh CLI đơn giản, bạn phải viết file Python để định nghĩa sơ đồ s1-s7 như trong ảnh bạn đã gửi.
+
+* **Định nghĩa Node FRR:** Tạo một Class kế thừa từ `Host` hoặc `Switch` trong Mininet để khởi chạy các daemon của FRR (`zebra`, `staticd`, `ospfd`, `bgpd`) ngay khi node bắt đầu.
+* **Thiết lập kết nối (Links):** Sử dụng `self.addLink(node1, node2)` để tạo kết nối Full-mesh giữa tầng Spine (s1, s2) và tất cả các Leaf (s3, s4, s5, s6, s7).
+* **Gán địa chỉ IP Underlay:** Quy hoạch các dải IP `/30` hoặc `/31` cho các đường link nối giữa Spine và Leaf để chạy giao thức định tuyến.
+
+---
+
+## 3. Cấu hình Underlay (Mạng vật lý)
+
+Mục tiêu của bước này là giúp tất cả các Switch nhìn thấy nhau qua lớp IP.
+
+* **Cấu hình OSPF/IS-IS:** Sử dụng FRR để bật OSPF trên tất cả các interface nối giữa Spine và Leaf.
+* **Thiết lập Loopback Interface:** Mỗi Switch cần một địa chỉ Loopback (ví dụ: `1.1.1.1/32`) để làm điểm đầu/cuối (VTEP) cho đường hầm VXLAN.
+* **Kiểm tra ECMP:** Đảm bảo rằng từ `s3`, bạn thấy có 2 đường đi đến `s6` (một qua `s1`, một qua `s2`) với chi phí bằng nhau.
+
+---
+
+## 4. Cấu hình Overlay (VXLAN & BGP EVPN)
+
+Đây là phần "trí thông minh" để xử lý các VLAN 10, 20, 30.
+
+* **Tạo Bridge và VXLAN Interface:** Sử dụng lệnh `ovs-vsctl` bên trong script hoặc CLI để tạo các port VXLAN trỏ đến IP Loopback của các Leaf đối diện.
+* **Cấu hình BGP EVPN:** * Thiết lập BGP giữa các Leaf và Spine (Spine đóng vai trò Route Reflector).
+* Kích hoạt `address-family l2vpn evpn` để quảng bá địa chỉ MAC và IP của các Host (`admin`, `lab`, `ktx`).
+
+
+* **Ánh xạ VLAN vào VNI:** Khai báo các dải VNI (ví dụ: 10010 cho Admin, 10020 cho Lab) để FRR biết cách đóng gói dữ liệu vào đúng tunnel.
+
+---
+
+## 5. Áp dụng Policy và Kiểm tra (Nhiệm vụ 2 & 4)
+
+* **Đo thông lượng:** Sử dụng `iperf` giữa `lab1` và `serverq7` để kiểm tra khả năng chia tải của ECMP.
+* **Cấu hình ACL/PBR:** Sử dụng `iptables` hoặc Route Maps trong FRR trên các Border Leaf (s6, s7) để ưu tiên luồng dữ liệu Admin (VLAN 10) và giới hạn băng thông KTX (VLAN 30).
+* **Kiểm tra dự phòng:** Thử dùng lệnh `link s1 s3 down` và quan sát xem gói tin có tự động chuyển hướng qua `s2` mà không bị mất kết nối hay không.
+
+Để triển khai mô hình **Spine-Leaf + VXLAN** trên Mininet cho bài tập Bảo Lộc - TP.HCM, việc quy hoạch địa chỉ IP cần chia thành 2 lớp rõ rệt: **Underlay** (Mạng vật lý để định tuyến giữa các switch) và **Overlay** (Mạng ảo cho người dùng/VLAN).
+
+Dưới đây là phương án chia IP tối ưu cho sơ đồ 7 switch (s1-s7) của bạn:
+
+---
+
+## 1. Lớp Underlay (Mạng vật lý - Kết nối giữa các Switch)
+
+Lớp này dùng để chạy các giao thức định tuyến (OSPF/BGP) để các Switch thấy nhau. Ta nên dùng dải IP `/31` hoặc `/30` để tiết kiệm.
+
+### A. Địa chỉ Loopback (VTEP ID)
+
+Mỗi switch cần 1 IP Loopback để làm định danh và điểm đầu/cuối đường hầm VXLAN.
+
+* **Spine 1 (s1):** `1.1.1.1/32`
+* **Spine 2 (s2):** `1.1.1.2/32`
+* **Leaf 1 (s3 - Admin):** `1.1.1.3/32`
+* **Leaf 2 (s4 - Lab):** `1.1.1.4/32`
+* **Leaf 3 (s5 - KTX):** `1.1.1.5/32`
+* **Border 1 (s6 - Internet):** `1.1.1.6/32`
+* **Border 2 (s7 - HCM):** `1.1.1.7/32`
+
+### B. Địa chỉ Point-to-Point (Giữa Spine và Leaf)
+
+Dùng dải `10.0.0.0/24`. Mỗi kết nối (link) trong sơ đồ của bạn sẽ chiếm một subnet nhỏ.
+
+* **Link s1 - s3:** `10.0.13.0/31` (s1: .0, s3: .1)
+* **Link s2 - s3:** `10.0.23.0/31` (s2: .0, s3: .1)
+* **Link s1 - s4:** `10.0.14.0/31` (s1: .0, s4: .1)
+* ... (Tương tự cho tất cả các link còn lại giữa Spine và Leaf).
+
+---
+
+## 2. Lớp Overlay (Mạng ảo - Cho sinh viên và nhân viên)
+
+Đây là các dải IP mà người dùng thực tế sẽ sử dụng, được đóng gói bên trong VXLAN.
+
+| Đối tượng | VLAN | VNI (VXLAN ID) | Dải IP (Subnet) | Gateway (Anycast) |
+| --- | --- | --- | --- | --- |
+| **Hành chính (Admin)** | 10 | 10010 | `192.168.10.0/24` | `192.168.10.1` |
+| **Phòng Lab** | 20 | 10020 | `192.168.20.0/24` | `192.168.20.1` |
+| **Ký túc xá (KTX)** | 30 | 10030 | `192.168.30.0/24` | `192.168.30.1` |
+| **Quản trị (NMS)** | 99 | 10099 | `192.168.99.0/24` | `192.168.99.1` |
+
+> **Lưu ý quan trọng:** Trong mô hình Spine-Leaf hiện đại, ta dùng **Anycast Gateway**. Nghĩa là địa chỉ `.1` của mỗi VLAN sẽ được cấu hình giống hệt nhau trên tất cả các Leaf (s3, s4, s5) để thiết bị đầu cuối có thể di chuyển linh hoạt.
+
+---
+
+## 3. Kết nối ra ngoài (WAN/Internet)
+
+Dùng cho Border Leaf (s6, s7) kết nối với thực thể bên ngoài (Internet/Server HCM).
+
+* **Kết nối Internet (s6):** `203.0.113.0/30`
+* **Kết nối Server TP.HCM (s7):** `172.16.1.0/30`
+
+---
+
+## 4. Bảng tổng hợp công việc cấu hình FRR
+
+Để các dải IP trên hoạt động, file cấu hình FRR của bạn cần các thành phần sau:
+
+1. **Router OSPF:** Quảng bá các dải `10.0.x.x` và `1.1.1.x` để thông tuyến Underlay.
+2. **Router BGP:** Thiết lập láng giềng giữa Leaf và Spine (Route Reflector).
+3. **Address-family L2VPN EVPN:** Để truyền tải thông tin các dải IP Overlay (`192.168.x.x`) qua mạng.
+
