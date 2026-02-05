@@ -83,8 +83,9 @@ class SpineLeafTopo(Topo):
         # 1. TẠO SPINE ROUTERS (Core Layer)
         # ===========================================
         info('*** Tạo Spine routers\n')
-        s1 = self.addHost('s1', cls=FRRNode, ip='1.1.1.1/32')
-        s2 = self.addHost('s2', cls=FRRNode, ip='1.1.1.2/32')
+        # FIX: Không set ip parameter để tránh Mininet add IP với /0 netmask
+        s1 = self.addHost('s1', cls=FRRNode)
+        s2 = self.addHost('s2', cls=FRRNode)
         
         # ===========================================
         # 2. TẠO OVS BRIDGES (Layer 2 Switching)
@@ -101,11 +102,12 @@ class SpineLeafTopo(Topo):
         # 3. TẠO LEAF ROUTERS (Access/Distribution Layer)
         # ===========================================
         info('*** Tạo Leaf routers\n')
-        s3 = self.addHost('s3', cls=FRRNode, ip='1.1.1.3/32')
-        s4 = self.addHost('s4', cls=FRRNode, ip='1.1.1.4/32')
-        s5 = self.addHost('s5', cls=FRRNode, ip='1.1.1.5/32')
-        s6 = self.addHost('s6', cls=FRRNode, ip='1.1.1.6/32')
-        s7 = self.addHost('s7', cls=FRRNode, ip='1.1.1.7/32')
+        # FIX: Không set ip parameter để tránh Mininet add IP với /0 netmask
+        s3 = self.addHost('s3', cls=FRRNode)
+        s4 = self.addHost('s4', cls=FRRNode)
+        s5 = self.addHost('s5', cls=FRRNode)
+        s6 = self.addHost('s6', cls=FRRNode)
+        s7 = self.addHost('s7', cls=FRRNode)
         
         # ===========================================
         # 4. TẠO END HOSTS
@@ -453,10 +455,44 @@ def populate_arp_cache(net):
     for dest in ['192.168.10.10', '192.168.20.10', '203.0.113.2']:
         net['ktx1'].cmd(f'ping -c 3 -W 2 {dest} > /dev/null 2>&1 &')
     
-    # FIX: Đợi lâu hơn - 5 giây thay vì 2 giây
+    # ===========================================
+    # 4. STATIC ARP ENTRIES FOR SPINE-LEAF LINKS
+    # FIX: Dùng static ARP thay vì ping để đảm bảo ARP resolution
+    # ===========================================
+    info('*** Thêm static ARP entries cho Spine-Leaf interfaces...\n')
+    
+    # Helper function để lấy MAC address
+    def get_mac(node, intf_name):
+        return node.cmd(f'cat /sys/class/net/{intf_name}/address').strip()
+    
+    # Get all MACs for spine-leaf connections
+    spine_leaf_connections = [
+        ('s1', 's1-eth0', 's3', 's3-eth1', '10.0.13.0', '10.0.13.1'),
+        ('s1', 's1-eth1', 's4', 's4-eth1', '10.0.14.0', '10.0.14.1'),
+        ('s1', 's1-eth2', 's5', 's5-eth1', '10.0.15.0', '10.0.15.1'),
+        ('s1', 's1-eth3', 's6', 's6-eth1', '10.0.16.0', '10.0.16.1'),
+        ('s1', 's1-eth4', 's7', 's7-eth1', '10.0.17.0', '10.0.17.1'),
+        ('s2', 's2-eth0', 's3', 's3-eth2', '10.0.23.0', '10.0.23.1'),
+        ('s2', 's2-eth1', 's4', 's4-eth2', '10.0.24.0', '10.0.24.1'),
+        ('s2', 's2-eth2', 's5', 's5-eth2', '10.0.25.0', '10.0.25.1'),
+        ('s2', 's2-eth3', 's6', 's6-eth2', '10.0.26.0', '10.0.26.1'),
+        ('s2', 's2-eth4', 's7', 's7-eth2', '10.0.27.0', '10.0.27.1'),
+    ]
+    
+    for spine_name, spine_intf, leaf_name, leaf_intf, spine_ip, leaf_ip in spine_leaf_connections:
+        spine_mac = get_mac(net[spine_name], spine_intf)
+        leaf_mac = get_mac(net[leaf_name], leaf_intf)
+        
+        # Add static ARP on spine for leaf
+        net[spine_name].cmd(f'arp -s {leaf_ip} {leaf_mac}')
+        # Add static ARP on leaf for spine
+        net[leaf_name].cmd(f'arp -s {spine_ip} {spine_mac}')
+        
+        info(f'    {spine_name} ({spine_ip}) <-> {leaf_name} ({leaf_ip})\n')
+    
     import time
-    info('    Đợi ARP learning hoàn tất (5 seconds)...\n')
-    time.sleep(5)
+    info('*** Static ARP entries đã được thêm!\n')
+    time.sleep(2)
     
     info('*** ARP cache và MAC learning đã được populated comprehensively!\n')
 
