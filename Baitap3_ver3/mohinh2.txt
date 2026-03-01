@@ -1,0 +1,63 @@
+MÔ HÌNH 2: KIẾN TRÚC MẠNG 3 LỚP TRUYỀN THỐNG (HIERARCHICAL L3)
+Khái quát: Đây là tiêu chuẩn thiết kế mạng doanh nghiệp kinh điển của Cisco. Kiến trúc này giải quyết triệt để thảm họa "Broadcast Storm" của Mạng Phẳng bằng cách chia nhỏ hệ thống thành các miền logic (VLAN) và tổ chức thiết bị theo 3 lớp vật lý: Core (Lõi) - Distribution (Phân phối) - Access (Truy cập). Tuy nhiên, giao thức chống lặp vòng (STP - Spanning Tree Protocol) lại tạo ra một điểm nghẽn mới về hiệu suất.
+1. Quy hoạch Không gian Mạng & Phân chia VLAN (IP Addressing & VLANs)
+Thay vì dùng chung một dải mạng khổng lồ, Campus được chia lô logic để cô lập luồng dữ liệu rác. Mỗi khu vực được cấp một VLAN và một Subnet riêng biệt.
+•	VLAN 10 - Admin (Ban Giám Hiệu): Dải IP 10.0.10.0/24. Gateway: 10.0.10.254.
+•	VLAN 20 - Lab AI (Nghiên cứu): Dải IP 10.0.20.0/24. Gateway: 10.0.20.254.
+•	VLAN 30 - Dorm (Ký túc xá): Dải IP 10.0.30.0/24. Gateway: 10.0.30.254.
+•	VLAN 99 - Server Farm Local: Dải IP 10.0.99.0/24. Gateway: 10.0.99.254.
+•	Định tuyến Inter-VLAN: Các Gateway của từng VLAN sẽ được cấu hình trên lớp Distribution hoặc Core (Sử dụng Switch Layer 3 hoặc Router-on-a-stick) để các mạng có thể nói chuyện với nhau. Cổng WAN ra Server HCM vẫn bị giới hạn ở 200Mbps.
+2. Thiết kế Cấu trúc Liên kết (Topology Design)
+Mô hình tổ chức lại toàn bộ cáp nối và Switch thành hệ thống phân cấp rõ ràng:
+•	Lớp Access (Truy cập): Các Switch L2 cắm trực tiếp vào máy tính người dùng. Port nối xuống PC là Access Port (gán đúng VLAN). Port nối ngược lên trên là Trunk Port.
+•	Lớp Distribution (Phân phối): Nơi hội tụ các kết nối từ lớp Access. Đây là ranh giới giữa Layer 2 và Layer 3, chịu trách nhiệm định tuyến giữa các VLAN (Inter-VLAN Routing) và áp dụng các chính sách bảo mật cơ bản (ACL).
+•	Lớp Core (Lõi): Chịu trách nhiệm chuyển mạch tốc độ cực cao, kết nối các block nhà (Block A, Block B, Server Farm) lại với nhau và nối ra Edge Router để ra WAN.
+•	Đặc tính dự phòng & Giao thức STP: Để tránh sập mạng nếu đứt cáp, mỗi Access Switch sẽ có 2 đường Uplink nối lên 2 Distribution Switch khác nhau. Tuy nhiên, Mininet (hoặc Switch thực tế) sẽ tự động chạy STP. STP sẽ khóa (Block) một đường Uplink để chống lặp vòng (Loop), chỉ giữ lại một đường Active.
+
+1. Bảng Kê Thiết Bị (Bill of Materials)
+Để tổ chức 69 máy tính vào đúng kiến trúc 3 lớp, số lượng thiết bị chuyển mạch sẽ tăng lên đáng kể. Tổng cộng chúng ta cần khoảng 89 Node (Thiết bị ảo):
+•	Lớp Core / Edge (1 Thiết bị):
+o	1 x Core Switch L3 (hoặc Edge Router): Đóng vai trò vừa chuyển mạch tốc độ cao giữa các tòa nhà, vừa làm Gateway định tuyến ra WAN.
+•	Lớp Distribution - Phân phối (4 Thiết bị):
+o	2 x Dist Switch (Tòa A): d_a1 và d_a2 (Chạy dự phòng cho vùng Hành chính và Lab AI).
+o	1 x Dist Switch (Tòa B): d_b1 (Cho vùng Ký túc xá).
+o	1 x Dist Switch (Server Farm): d_srv (Cho vùng Server nội bộ).
+•	Lớp Access - Truy cập (14 Thiết bị): (Giả định mỗi Switch Access cắm được 5 Host)
+o	1 x Access Switch: Cho Admin (a_admin).
+o	4 x Access Switch: Cho Lab AI (a_lab_1 đến a_lab_4).
+o	8 x Access Switch: Cho Dorm (a_dorm_1 đến a_dorm_8).
+o	1 x Access Switch: Cho Server (a_srv).
+•	70 x Hosts (Giữ nguyên như Mô hình 1): 5 Admin, 20 Lab, 40 Dorm, 4 Server Local, 1 Server HCM.
+________________________________________
+2. Chi tiết Kết nối và Băng thông (Links & Bandwidth)
+Kiến trúc này sử dụng nhiều đường cáp hơn để tạo sự dự phòng (Redundancy), nhưng giao thức chống lặp vòng (STP) sẽ can thiệp vào các đường này.
+•	Từ Host -> Access Switch: * Admin: 100 Mbps | Lab AI: 1 Gbps | Dorm: 50 Mbps | Server Local: 1 Gbps.
+•	Từ Access -> Distribution (Uplink): * Tất cả dùng cáp 1 Gbps.
+o	Đặc biệt tại vùng Lab AI: Mỗi Switch a_lab sẽ cắm 2 sợi cáp hướng lên cả d_a1 và d_a2. (Đây là điểm mấu chốt để test hiện tượng nghẽn do STP khóa cổng).
+•	Từ Distribution -> Core Switch: Cáp 1 Gbps.
+•	Từ Core Switch -> Server HCM (WAN): Giới hạn cứng 200 Mbps, delay 10ms.
+________________________________________
+3. Cấu hình Chi tiết (Configuration Checklist)
+Sự phân chia logic (Layer 2 và Layer 3) đòi hỏi bạn phải cấu hình cụ thể trên từng nấc của hệ thống.
+A. Cấu hình trên 69 Hosts Nội bộ (Thay đổi Subnet Mask)
+Các máy không còn nằm chung nhà nữa. Bạn phải cấu hình IP theo dải mạng hẹp hơn và trỏ Gateway về đúng VLAN của mình:
+•	Admin (VLAN 10): IP 10.0.10.x/24. Default Gateway: 10.0.10.254.
+•	Lab AI (VLAN 20): IP 10.0.20.x/24. Default Gateway: 10.0.20.254.
+•	Dorm (VLAN 30): IP 10.0.30.x/24. Default Gateway: 10.0.30.254.
+•	Server Local (VLAN 99): IP 10.0.99.x/24. Default Gateway: 10.0.99.254.
+B. Cấu hình trên 14 Access Switches (Lớp Truy cập L2)
+Lớp này chỉ làm việc với địa chỉ MAC và VLAN tag.
+•	Cổng cắm Host (Access Port): Phải gán đúng VLAN ID. Ví dụ: Cổng cắm admin_1 phải được cấu hình lệnh gán vào VLAN 10. Gói tin đi vào cổng này sẽ được "đóng mác" VLAN 10.
+•	Cổng cắm lên Distribution (Trunk Port): Cấu hình chế độ Trunk (chuẩn 802.1Q) để cho phép nhiều VLAN đi qua cùng một sợi cáp.
+•	Kích hoạt STP: Bật Spanning Tree Protocol trên toàn bộ Switch (trong Mininet là tham số stp=1).
+C. Cấu hình trên 4 Distribution Switches (Lớp Phân phối L2/L3)
+Đây là ranh giới định tuyến. Có thể cấu hình Inter-VLAN Routing ngay tại đây.
+•	Cổng nối xuống Access: Cấu hình chế độ Trunk.
+•	Cổng nối lên Core: Cấu hình chế độ Trunk (hoặc cấu hình thành cổng L3 Routed Port tùy thiết kế).
+•	Cấu hình SVI (Switch Virtual Interface): Tạo các interface ảo làm Default Gateway cho các VLAN. Ví dụ trên Dist Tòa A: interface vlan 10, ip address 10.0.10.254 255.255.255.0. Khi máy Admin muốn ra ngoài, gói tin sẽ chạy lên tới SVI này để được định tuyến.
+D. Cấu hình trên Core Switch / Edge Router (Lớp Lõi L3)
+•	Bảng định tuyến (Routing): Phải biết đường đi đến toàn bộ các Subnet 10.0.10.0/24, 10.0.20.0/24... (Thông qua định tuyến tĩnh hoặc chạy OSPF nội bộ với các Distribution Switch).
+•	Cổng WAN: Gán IP 203.162.1.254/24 và thiết lập đường Default Route trỏ về Server HCM. Áp dụng giới hạn hàng đợi (Queue) 200Mbps tại cổng này.
+E. Hiện tượng "Khóa Cổng" của STP (Điểm nhấn Bài Test)
+Khi cấu hình xong, do Switch a_lab_1 nối lên cả d_a1 và d_a2 tạo thành một vòng lặp (Loop), thuật toán STP sẽ tự động tính toán và đưa một cổng vào trạng thái Blocking (chặn truyền dữ liệu). Khi bạn chạy đa luồng iperf, dữ liệu khổng lồ của Lab sẽ chỉ đi qua sợi cáp duy nhất đang ở trạng thái Forwarding, gây ra hiện tượng thắt cổ chai ngay tại Switch Access mà chưa cần ra đến WAN.
+

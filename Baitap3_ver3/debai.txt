@@ -1,0 +1,85 @@
+ĐỀ ÁN: THIẾT KẾ, KIỂM THỬ VÀ TỐI ƯU HÓA MẠNG CAMPUS QUY MÔ LỚN (HIGH SCALABILITY)
+Chủ đề: Tối ưu hóa "Nút thắt cổ chai" và Đánh giá Hiệu năng Kiến trúc mạng cho Đại học Số (Digital Campus) – Phân hiệu Bảo Lộc.
+1. Hồ sơ Hiện trạng & Yêu cầu Kỹ thuật (Scenario Profile)
+•	Khách hàng: Phân hiệu Đại học Bảo Lộc (Kết nối VPN về Trụ sở chính TP.HCM).
+•	Quy mô vật lý: 2 Tòa nhà (Block A - Hành chính/Lab AI, Block B - Ký túc xá).
+•	Tổng số lượng người dùng: ~1.200 sinh viên và cán bộ.
+•	Nút thắt hệ thống (Bottleneck): Đường WAN kết nối về TP.HCM chỉ có băng thông 200 Mbps.
+Phân bổ Vùng (Zone) và Nhu cầu Lưu lượng:
+Khu vực (Zone)	Số Host (Mininet)	Đặc tính Traffic (Lưu lượng)	Yêu cầu SLA (Cam kết Dịch vụ)
+Zone 1: Admin	5 Hosts (h_admin)	North-South (truy cập ERP HCM). Lưu lượng nhỏ, cần độ tin cậy cao.	Latency < 20ms. Zero Loss.
+Zone 2: AI Lab	20 Hosts (h_lab)	East-West (Distributed Training). Trao đổi dữ liệu cực lớn trong nội bộ.	Bandwidth > 1Gbps (giữa các máy).
+Zone 3: Dorm	40 Hosts (h_dorm)	North-South (Streaming, Gaming). Traffic khổng lồ, dễ gây nghẽn.	Best-effort (Chấp nhận trễ, không sập).
+Zone 4: Server	4 Hosts (h_srv)	Lưu trữ Local Camera, File share, Cache.	High Availability (Tính sẵn sàng cao).
+2. Thách thức Kỹ thuật (The Challenges)
+Mạng cần giải quyết hai vấn đề cốt lõi:
+1.	Vấn đề Oversubscription (Tỷ lệ nghẽn WAN): Tổng nhu cầu băng thông từ Ký túc xá có thể lên tới 400Mbps, nhưng đường WAN chỉ đáp ứng 200Mbps. Cần đảm bảo lưu lượng rác/giải trí không "bóp nghẹt" các gói tin quan trọng của Ban Giám Hiệu.
+2.	Vấn đề Elephant Flow (Luồng dữ liệu lớn nội bộ): Các job huấn luyện AI tại Zone 2 đẩy lượng lớn traffic chạy qua Core Switch, gây nghẽn cục bộ và ảnh hưởng đến toàn bộ hiệu năng mạng.
+________________________________________
+3. Lộ trình Triển khai Mô phỏng (4 Models Architecture)
+Sinh viên sẽ xây dựng 4 mô hình mạng riêng biệt tương ứng với 4 file cấu hình Python trên Mininet để thấy rõ sự tiến hóa trong việc giải quyết các thách thức trên.
+lưu ý với mỗi switch kết nối được tối đa 48 host
+•	Mô hình 1: Mạng Phẳng (Flat Network) - cauhinh1.py
+o	Mô tả: Tất cả Host nằm chung dải mạng 10.0.0.0/16, kết nối qua 2 L2 Switch khổng lồ.
+o	Mục tiêu: Chứng minh sự sụp đổ của hệ thống khi xảy ra Broadcast Storm và không có khả năng kiểm soát luồng.
+•	Mô hình 2: Mạng 3 Lớp Truyền thống (Hierarchical L3) - cauhinh2.py
+o	Mô tả: Chia Core - Distribution - Access. Tách VLAN (10, 20, 30, 99). Chạy giao thức STP.
+o	Mục tiêu: Cô lập được Broadcast Domain. Tuy nhiên, cần chứng minh STP làm lãng phí 50% băng thông dự phòng (chỉ chạy Active-Standby) và cấu hình tĩnh khó kiểm soát QoS WAN.
+•	Mô hình 3: Mạng Spine-Leaf + VXLAN - cauhinh3.py
+o	Mô tả: Thay đổi cấu trúc Zone Lab & Server thành Clos Topology (2 Spine, 4 Leaf). Định tuyến OSPF/BGP.
+o	Mục tiêu: Xử lý triệt để bài toán "Elephant Flow" bằng cơ chế ECMP (Equal-Cost Multi-Path), phân tải lưu lượng East-West hiệu quả mà không bị block port như STP.
+•	Mô hình 4: Mạng SDN Automation (QoS Động) - cauhinh4.py
+o	Mô tả: Tích hợp SDN Controller (Ryu/ONOS) để quản trị tập trung.
+o	Mục tiêu: Giám sát port WAN theo thời gian thực. Khi tải WAN > 90% (180Mbps), tự động ép băng thông (Rate Limit) của Zone Dorm xuống mức thấp nhất để bảo vệ băng thông cho Zone Admin.
+________________________________________
+4. Kịch bản Kiểm thử & So sánh (Test Framework)
+Sẽ có một file thực thi chung (ví dụ: run_tests.py) gọi lần lượt 4 cấu trúc topology trên. File test này sẽ trích xuất kết quả thô trực tiếp từ lệnh ping (không sử dụng hàm print định dạng lại) và đo đạc băng thông iperf để đảm bảo tính minh bạch của dữ liệu.
+Các Bài Test Bắt Buộc:
+1.	Test 1: Đo lường băng thông East-West (Vấn đề Elephant Flow)
+o	Hành động: Chạy iperf TCP đa luồng giữa h_lab_1 và h_srv_1.
+o	Mục tiêu: So sánh tổng băng thông (Throughput) đạt được giữa mô hình 3 lớp (STP) và Spine-Leaf (ECMP).
+2.	Test 2: Đo lường độ trễ khi nghẽn mạng WAN (Vấn đề Oversubscription)
+o	Hành động: Dùng iperf UDP tạo ra 250Mbps traffic từ các máy Ký túc xá (h_dorm) đẩy về Server HCM (h_hcm) làm quá tải đường WAN. Đồng thời, cho máy h_admin_1 ping liên tục về h_hcm.
+o	Mục tiêu: Quan sát tỷ lệ rớt gói (Packet Loss) và độ trễ (Latency) của Admin.
+Bảng Thống Kê Tổng Hợp Dự Kiến:
+Kịch bản Mạng	Bài Test 1: Băng thông Lab -> Server (East-West)	Bài Test 2: Tỷ lệ Loss của Admin khi WAN nghẽn	Bài Test 2: Ping (Trễ) của Admin khi WAN nghẽn	Nhận xét Khả năng Kiểm soát Luồng
+Model 1: Flat (cauhinh1.py)	[Data từ iperf]	[Kết quả ping thô]	[Kết quả ping thô]	Không thể kiểm soát, dễ sập toàn mạng.
+Model 2: 3-Tier (cauhinh2.py)	[Data từ iperf]	[Kết quả ping thô]	[Kết quả ping thô]	Phân tách tốt nhưng không có QoS linh hoạt.
+*Model 3: Spine-Leaf (cauhinh3.py)	[Data từ iperf]	[Kết quả ping thô]	[Kết quả ping thô]	Tối ưu tuyệt đối cho lưu lượng nội bộ.
+Model 4: SDN (cauhinh4.py)	[Data từ iperf]	[Kết quả ping thô]	[Kết quả ping thô]	QoS động hoàn hảo, Admin được bảo vệ 100%.
+________________________________________
+5. Yêu cầu Tính toán Lý thuyết
+Dựa vào kịch bản hệ thống gặp tải trọng lớn vào lúc 20:00 (Dorm: 150Mbps YouTube + Gaming; Admin: 3Mbps Zoom; Backup Server: Max bandwidth):
+1.	Mô phỏng Hàng đợi (Queueing): Đề xuất tỷ lệ % thiết lập cơ chế Priority Queue (PQ) cho Admin và Weighted Fair Queuing (WFQ) cho Dorm/Server trên cổng WAN.
+2.	Toán học Mạng: Tính tổng độ trễ lý thuyết cho gói tin đi từ h_lab_1 đến h_lab_20 đi qua mô hình Spine-Leaf bằng công thức:
+$Delay_{total} = \sum Link\_Delay + \sum Processing\_Delay$
+6. Đánh giá 4 Mô hình theo 8 Tiêu chí Vàng (Golden Criteria)
+Để có cái nhìn tổng quan và bám sát các tiêu chuẩn thiết kế mạng quốc tế, chúng ta sẽ so sánh 4 cấu hình (cauhinh1.py đến cauhinh4.py) dựa trên 8 tiêu chí cốt lõi:
+Tiêu chí Vàng	Model 1: Mạng Phẳng (Flat)	Model 2: 3 Lớp Truyền Thống (Hierarchical)	Model 3: Spine-Leaf + VXLAN	Model 4: SDN Automation
+1. Khả năng mở rộng (Scalability)	Rất kém. Dễ sập khi thêm node.	Tốt. Mở rộng theo từng Block/VLAN.	Xuất sắc. Mở rộng ngang (Scale-out) dễ dàng thêm Leaf/Spine.	Xuất sắc. Controller quản lý hàng ngàn node linh hoạt.
+2. Hiệu năng (Performance/Throughput)	Thấp. Nghẽn tại 1 Switch trung tâm.	Khá. Bị giới hạn băng thông do STP khóa cổng dự phòng.	Tối đa. Tận dụng 100% băng thông các đường link nhờ ECMP.	Tối đa. Tối ưu đường đi luồng dữ liệu theo thời gian thực.
+3. Độ tin cậy (Availability)	Không có. Single Point of Failure.	Cao. Có thiết bị và đường link dự phòng (nhưng chậm hội tụ).	Rất cao. Nhiều đường đi song song, đứt 1 link không ảnh hưởng.	Rất cao. Tự động định tuyến lại (Reroute) ngay lập tức khi lỗi.
+4. Tính bảo mật (Security)	Rất kém. Ai cũng thấy gói tin của nhau.	Tốt. Cách ly bằng VLAN và ACL tĩnh.	Rất tốt. Cách ly bằng VXLAN/VNI và Micro-segmentation.	Xuất sắc. Chính sách bảo mật động theo từng luồng/người dùng.
+5. Khả năng quản trị (Manageability)	Dễ thiết lập ban đầu, ác mộng khi rà lỗi.	Khá phức tạp. Cấu hình thủ công trên từng Switch.	Phức tạp. Đòi hỏi kiến thức sâu về định tuyến (OSPF/BGP).	Tập trung và tự động hóa cao thông qua Controller (Giao diện API).
+6. Chi phí (Cost)	Rẻ nhất. Thiết bị cơ bản.	Trung bình. Cần Switch L3/Core đắt tiền.	Cao. Cần số lượng lớn Switch hỗ trợ tính năng cao cấp.	Đa dạng. Tiết kiệm phần cứng (White-box) nhưng tốn chi phí phần mềm/nhân lực.
+7. Tính linh hoạt (Agility)	Cứng nhắc.	Thay đổi cấu trúc mất nhiều thời gian.	Linh hoạt cao trong việc di chuyển Workload (VMs).	Tức thời. Lập trình lại mạng bằng Code Python.
+8. Kiểm soát luồng (QoS/Traffic)	Không thể kiểm soát.	Cấu hình QoS tĩnh, khó thích ứng khi lưu lượng đột biến.	Cân bằng tải cực tốt nhưng QoS vẫn cấu hình trên từng thiết bị.	Động (Dynamic QoS). Tự động bóp/mở băng thông theo điều kiện mạng.
+________________________________________
+7. Kịch Bản Stress Test Trọng Tâm: Bão Lưu Lượng Lab -> Server
+Mục đích: Kiểm tra khả năng xử lý lưu lượng "East-West" (luồng dữ liệu lớn nội bộ) khi có yêu cầu truy xuất dữ liệu đồng loạt. Đây là bài test định hình rõ nhất ranh giới sức mạnh giữa các kiến trúc mạng.
+Thao tác thực hiện:
+Kích hoạt 20 tiến trình iperf (mô phỏng tải file lớn) đồng thời từ toàn bộ 20 máy Lab (h_lab_1 đến h_lab_20) đẩy dữ liệu về cụm Server (h_srv_1 đến h_srv_4). Trích xuất trực tiếp kết quả thô của iperf và lệnh ping trong quá trình chạy (không sử dụng hàm bọc kết quả).
+Dự đoán Kết quả chi tiết trên từng Mô hình:
+•	Mô hình 1: Mạng Phẳng (cauhinh1.py)
+o	Hiện tượng: Bảng MAC của Core Switch duy nhất bị quá tải. Xảy ra hiện tượng rớt gói diện rộng do hàng đợi buffer của Switch cạn kiệt.
+o	Kết quả dữ liệu: Băng thông trung bình mỗi máy Lab nhận được cực kỳ thấp và không đồng đều. Quá trình xuất kết quả ping thô sẽ hiển thị liên tục "Destination Host Unreachable" hoặc độ trễ dao động từ vài chục đến hàng ngàn ms do nghẽn cổ chai.
+•	Mô hình 2: Mạng 3 Lớp Truyền Thống (cauhinh2.py)
+o	Hiện tượng: Giao thức STP (Spanning Tree Protocol) sẽ khóa một nửa số đường link dự phòng để chống loop. Tất cả 20 máy Lab sẽ dồn lưu lượng vào một đường Uplink duy nhất đang ở trạng thái Forwarding nối từ Access lên Distribution.
+o	Kết quả dữ liệu: Tổng băng thông đo được sẽ bị giới hạn cứng ở mức 1Gbps (hoặc giới hạn của đường Uplink đó). Chia đều cho 20 máy, mỗi máy chỉ đạt tối đa khoảng 50Mbps. Kết quả lệnh ping thô sẽ ổn định hơn Model 1, nhưng khi vắt kiệt băng thông Uplink, tỷ lệ rớt gói sẽ bắt đầu xuất hiện.
+•	Mô hình 3: Spine-Leaf (cauhinh3.py)
+o	Hiện tượng: Nhờ cơ chế ECMP (Equal-Cost Multi-Path) của OSPF/BGP, lưu lượng từ 20 máy Lab sẽ được "băm" đều (Hash) ra tất cả các đường link vật lý nối lên 2 Spine Switch. Không có cổng nào bị khóa.
+o	Kết quả dữ liệu: Tổng băng thông đạt mức tối đa (tổng dung lượng của tất cả các Uplink cộng lại). iperf sẽ cho thấy mỗi máy Lab đạt được băng thông cao gấp 2 đến 3 lần so với Model 2. Lệnh ping thô mượt mà, độ trễ cực thấp và gần như không có rớt gói do lưu lượng được phân tán hoàn hảo.
+•	Mô hình 4: SDN Automation (cauhinh4.py)
+o	Hiện tượng: Tương tự như sức mạnh phần cứng của Spine-Leaf, nhưng bộ điều khiển (Controller) lúc này sẽ đóng vai trò như một "Cảnh sát giao thông". Bộ điều khiển liên tục đọc chỉ số OpenFlow từ các Switch.
+o	Kết quả dữ liệu: Ngay khi bộ điều khiển nhận thấy tổng lưu lượng đổ về cụm Server có nguy cơ làm ngập lụt cổng của h_srv_1, script Python (đã viết trên Controller) sẽ tự động đẩy luồng dữ liệu mới sang h_srv_2 hoặc áp đặt Rate Limit động. Kết quả xuất ra sẽ cho thấy băng thông được dàn phẳng cực kỳ thông minh, đảm bảo không có bất kỳ kết nối ping thô nào bị gián đoạn hay tăng vọt độ trễ.
+

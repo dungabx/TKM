@@ -1,0 +1,73 @@
+- 4 file cấu hình sẽ không có test ở trong chỉ có cấu hình mặc định 
+- file test.py sẽ chứa tất cả các test
+- khi chạy file test.py ở mode tự động thì nó sẽ chạy file cauhinh1 sau đó chạy các test đưa ra kết quả thống kê của cauhinh1 sau đó tắt file cauhinh1 và tiếp tục với các cauhinh2, cauhinh3, cauhinh4 
+- khi chạy file test.py ở mode thủ công  tức test.py cauhinh1 thì nó sẽ chạy file cauhinh1 sau đó chạy các test đưa ra kết quả thống kê của cauhinh1 sau đó tắt file cauhinh1 và dừng lại tương tự cho các cauhinh2, cauhinh3, cauhinh4     
+- về các bài test các test này sẽ là test chung cho cả 4 cấu hình tức là 1 bài test áp dụng cho 4 cấu hình để so sánh kết quả với nhau 
+- Dưới đây là mô tả chi tiết cho Test 1: Kiểm tra lưu lượng khi toàn bộ Lab truy cập về Server HCM.
+
+Bài test này sẽ đẩy hệ thống vào trạng thái khắc nghiệt nhất: Nút thắt cổ chai WAN (200Mbps) phải gánh chịu lưu lượng khổng lồ từ mạng nội bộ (Elephant Flow) đẩy ra ngoài (North-South Traffic).
+
+Để đảm bảo tính chính xác và minh bạch tuyệt đối của dữ liệu, kết quả độ trễ trong bài test này sẽ được trích xuất trực tiếp từ đầu ra thô của lệnh ping của hệ điều hành, hoàn toàn không sử dụng hàm print trong Python để bọc hay định dạng lại.
+
+Test 1
+Hành động 1 (Tạo bão lưu lượng): Dùng công cụ iperf kích hoạt đồng loạt 20 máy trạm phòng Lab (h_lab_1 đến h_lab_20) đẩy dữ liệu tối đa về h_hcm (IP: 203.162.1.1).
+
+Hành động 2 (Đo lường thời gian thực): Trong lúc iperf đang vắt kiệt băng thông, thực thi trực tiếp lệnh ping (ping -c 10 203.162.1.1) từ một máy khác (ví dụ h_admin_1 hoặc chính h_lab_1) và quan sát kết quả thô chảy trên màn hình Terminal.
+
+Dưới đây là sự khác biệt về lưu lượng và kết quả hiển thị trên từng mô hình:
+
+Mô hình 1: Mạng Phẳng (Flat Network)
+Hiện tượng lưu lượng: Toàn bộ 20 luồng traffic từ Lab đổ dồn vào một Switch L2 duy nhất. Switch này không có cơ chế hàng đợi thông minh. Lưu lượng khổng lồ đập thẳng vào cổng LAN của Router biên, làm tràn bộ đệm (Buffer) của Router ngay lập tức vì cổng WAN chỉ xả được 200Mbps.
+
+Kết quả Ping thô hiển thị: Màn hình terminal sẽ xuất hiện liên tục các dòng báo lỗi rớt mạng hoặc độ trễ khổng lồ.
+
+Plaintext
+64 bytes from 203.162.1.1: icmp_seq=1 ttl=64 time=3450 ms
+64 bytes from 203.162.1.1: icmp_seq=2 ttl=64 time=4120 ms
+Request timeout for icmp_seq 3
+Đánh giá: Toàn mạng tê liệt. Băng thông iperf của mỗi máy Lab cực thấp, chập chờn và không đồng đều.
+
+Mô hình 2: Mạng 3 Lớp Truyền thống (Hierarchical L3)
+Hiện tượng lưu lượng: Giao thức STP đã khóa mất 50% đường link dự phòng của Switch Access phòng Lab. Do đó, lưu lượng của 20 máy Lab bị "bóp cổ" ngay từ Lớp Truyền cập (Access) lên Lớp Phân phối (Distribution). Những luồng dữ liệu nào sống sót lọt qua được Lớp Core để ra Edge Router lại tiếp tục bị kẹt ở hàng đợi WAN 200Mbps.
+
+Kết quả Ping thô hiển thị: Do gói tin bị nghẽn ở tận 2 điểm (Uplink bị khóa bởi STP và cổng WAN), kết quả ping thô sẽ hiển thị độ trễ rất cao, tuy không sập hoàn toàn như Mô hình 1 nhưng hiện tượng rớt gói vẫn xảy ra đều đặn.
+
+Plaintext
+64 bytes from 203.162.1.1: icmp_seq=1 ttl=63 time=850 ms
+64 bytes from 203.162.1.1: icmp_seq=2 ttl=63 time=912 ms
+Request timeout for icmp_seq 3
+Đánh giá: Chia VLAN không cứu được mạng khi luồng dữ liệu bị định tuyến tĩnh và STP làm lãng phí phần cứng.
+
+Mô hình 3: Spine-Leaf + VXLAN
+Hiện tượng lưu lượng: Nhờ cơ chế ECMP, 20 luồng traffic từ Lab chạy mượt mà trên tất cả các sợi cáp nội bộ (không bị khóa cổng nào) để tìm đến Border Leaf. Tuy nhiên, kiến trúc Data Center này chỉ mạnh ở nội bộ. Khi Border Leaf đẩy toàn bộ 20 luồng này sang Edge Router để ra WAN, "nút thắt 200Mbps" lại phát huy tác dụng. Hàng đợi WAN tràn.
+
+Kết quả Ping thô hiển thị: Dù mạng nội bộ cực nhanh, ping thô ra HCM vẫn sẽ phơi bày độ trễ lớn tại cổng biên.
+
+Plaintext
+64 bytes from 203.162.1.1: icmp_seq=1 ttl=62 time=600 ms
+64 bytes from 203.162.1.1: icmp_seq=2 ttl=62 time=620 ms
+Đánh giá: Giải quyết xuất sắc nút thắt nội bộ (East-West), nhưng hoàn toàn bất lực trong việc tự động ưu tiên băng thông khi ra ngoài Internet (North-South).
+
+Mô hình 4: SDN Automation (Dynamic QoS)
+Hiện tượng lưu lượng: Ryu Controller liên tục giám sát cổng WAN. Khi 20 máy Lab đẩy traffic làm băng thông WAN vọt lên mức cảnh báo (ví dụ >180Mbps), ứng dụng Python trên Controller lập tức phát hiện. Controller tự động đẩy một luật OpenFlow (Flow-Mod) xuống Switch chặn lưu lượng của dải IP Lab, ép tốc độ (Rate-Limit) xuống mức thấp nhất để giải phóng đường truyền.
+
+Kết quả Ping thô hiển thị: Đây là sự khác biệt lớn nhất. Ban đầu, có thể 1-2 dòng ping thô đầu tiên báo trễ cao. Nhưng ngay khi Controller can thiệp bóp băng thông của Lab, các dòng ping thô tiếp theo lập tức tụt xuống mức lý tưởng và chạy mượt mà ổn định.
+
+Plaintext
+64 bytes from 203.162.1.1: icmp_seq=1 ttl=64 time=450 ms  <-- Trước khi Controller can thiệp
+64 bytes from 203.162.1.1: icmp_seq=2 ttl=64 time=15.2 ms <-- Sau khi Controller bóp luồng Lab
+64 bytes from 203.162.1.1: icmp_seq=3 ttl=64 time=14.8 ms
+Đánh giá: SDN đã biến mạng lưới thành một hệ thống có nhận thức, tự động điều tiết "cảnh sát giao thông" để bảo vệ các gói tin quan trọng mà không cần sự can thiệp thủ công.
+- Test 2: Thảm họa Broadcast Storm
+Mục tiêu: Đánh giá khả năng cô lập lỗi mạng nội bộ.
+
+Hành động: Sử dụng một máy ở Ký túc xá (VLAN 30) gửi liên tục các gói tin Broadcast rác ra toàn mạng. Cùng lúc đó, Ban Giám Hiệu làm việc bình thường.
+
+Thu thập dữ liệu: Đánh giá mức độ ảnh hưởng đến độ trễ mạng. Yêu cầu xuất trực tiếp kết quả thô từ lệnh ping của máy Admin, không xài hàm print. Mô hình 1 sẽ sập hoàn toàn, các mô hình khác sẽ chặn được Broadcast.
+
+- Test 3: Dynamic QoS - Xung đột Băng thông (Traffic Shaping)
+Mục tiêu: Kiểm tra tính năng ưu tiên luồng dữ liệu quan trọng khi hệ thống bị tranh giành tài nguyên.
+
+Hành động: 40 sinh viên KTX xả tải tối đa ra đường WAN bằng UDP traffic. Giám đốc (Admin) thực hiện cuộc gọi video (ping) quan trọng về trụ sở.
+
+Thu thập dữ liệu: Đọc luồng dữ liệu ping thô chảy trên màn hình, không sử dụng hàm print. Quan sát khoảnh khắc Controller của Mô hình 4 tự động phát hiện nghẽn và ép băng thông (Rate-Limit) của KTX xuống để đưa độ trễ của Admin về mức lý tưởng.
