@@ -74,7 +74,7 @@ def build_net():
     """Build + configure mạng phẳng, trả về net object (KHÔNG gọi CLI)."""
     cleanup_mininet()
     net = Mininet(controller=None, link=TCLink, autoSetMacs=True)
-    r1 = net.addHost('r1', cls=LinuxRouter, ip=None)
+    r1 = net.addHost('r1', cls=LinuxRouter, ip='10.0.0.254/16')
     s1 = net.addSwitch('s1', cls=OVSSwitch, failMode='standalone')
     s2 = net.addSwitch('s2', cls=OVSSwitch, failMode='standalone')
     serverhcm = net.addHost('serverhcm', ip='203.162.1.1/24')
