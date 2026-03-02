@@ -1,0 +1,5 @@
+# Thử eventlet 0.35.2 (hỗ trợ Python 3.12 đầy đủ)
+sudo pip3 install eventlet==0.35.2 --break-system-packages --force-reinstall
+
+# Chạy lại
+sudo ryu-manager ryu.app.simple_switch_13 --ofp-tcp-listen-port 6653

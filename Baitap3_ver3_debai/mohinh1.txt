@@ -1,0 +1,58 @@
+MÔ HÌNH 1: KIẾN TRÚC MẠNG PHẲNG (FLAT NETWORK)
+Khái quát: Đây là kiến trúc mạng nguyên thủy nhất, toàn bộ Campus được đặt trong một Miền Quảng bá (Broadcast Domain) khổng lồ ở Layer 2. Không có sự phân chia luận lý (VLAN) giữa Hành chính, Lab, hay Ký túc xá.
+1. Quy hoạch Không gian Mạng (IP Addressing & Gateway)
+Để các máy tính có thể giao tiếp nội bộ và định tuyến ra bên ngoài (TP.HCM), hệ thống được quy hoạch như sau:
+•	Mạng Nội bộ (Campus LAN): Toàn bộ 69 thiết bị sử dụng chung một dải mạng Subnet lớn: 10.0.0.0/16.
+•	Cấp phát IP Logic (Dễ quản lý):
+o	Vùng Admin (5 hosts): 10.0.1.x
+o	Vùng Lab AI (20 hosts): 10.0.2.x
+o	Vùng Ký túc xá (40 hosts): 10.0.3.x
+o	Vùng Server Local (4 hosts): 10.0.4.x
+•	Định tuyến Biên (Edge Routing): Triển khai một Edge Router làm Default Gateway tại IP 10.0.0.254. Cổng WAN của Router này kết nối với Server HCM (203.162.1.1) qua một đường link bị giới hạn băng thông ở mức 200Mbps.
+2. Thiết kế Cấu trúc Liên kết (Topology Design)
+•	Core Switch L2: Đóng vai trò là trung tâm chuyển mạch duy nhất. Tất cả 69 thiết bị đầu cuối đều cắm trực tiếp (hoặc gián tiếp qua các switch L2 câm) vào thiết bị này.
+•	Edge Router: Nối 1 cổng LAN vào Core Switch (1Gbps) và 1 cổng WAN ra bên ngoài (200Mbps).
+•	Bản chất luồng dữ liệu: Bất kỳ gói tin Broadcast nào (như ARP Request) từ một máy Ký túc xá cũng sẽ bị nhân bản và đẩy đến cổng của máy tính Ban Giám Hiệu, Phòng Lab và Server.
+
+1. Bảng Kê Thiết Bị (Bill of Materials)
+Để tái hiện đúng quy mô Campus 69 máy và 1 Server đầu xa, bạn cần khởi tạo chính xác 72 Node (Thiết bị ảo) trong topology:
+•	1 x Edge Router (Thiết bị định tuyến biên): Làm Default Gateway và nút thắt cổ chai kết nối ra ngoài.
+•	1 x Core Switch (Thiết bị chuyển mạch trung tâm): Trong mạng phẳng, chúng ta chỉ cần 1 Switch ảo khổng lồ (đủ số lượng port) để cắm tất cả mọi thứ vào. Không cần Access hay Distribution Switch.
+•	70 x Hosts (Thiết bị đầu cuối):
+o	Admin: 5 máy (admin_1 đến admin_5).
+o	Lab AI: 20 máy (lab_1 đến lab_20).
+o	Ký túc xá (Dorm): 40 máy (dorm_1 đến dorm_40).
+o	Server Local: 4 máy (srv_1 đến srv_4).
+o	Server HCM: 1 máy (h_hcm) nằm ngoài Internet/WAN.
+________________________________________
+2. Chi tiết Kết nối và Băng thông (Links & Bandwidth)
+Tất cả các Host trong nội bộ đều cắm chung vào 1 chiếc Core Switch duy nhất bằng các sợi cáp ảo với thông số giới hạn như sau:
+•	5 máy Admin <-> Core Switch: Cáp 100 Mbps.
+•	20 máy Lab AI <-> Core Switch: Cáp 1 Gbps (Mô phỏng máy trạm cấu hình cao).
+•	40 máy Ký túc xá <-> Core Switch: Cáp 50 Mbps (Mô phỏng mạng Wifi chậm hơn).
+•	4 máy Server Local <-> Core Switch: Cáp 1 Gbps.
+•	Cổng LAN Edge Router <-> Core Switch: Cáp 1 Gbps (Uplink nội bộ).
+•	Cổng WAN Edge Router <-> Server HCM: Cáp 200 Mbps, độ trễ (delay) 10ms. (Đây chính là "nút thắt cổ chai" sinh tử của toàn hệ thống).
+________________________________________
+3. Cấu hình Chi tiết (Configuration Checklist)
+Điểm đặc trưng nhất của mạng phẳng là sự dồn việc vào Router và thiết bị đầu cuối, trong khi Switch gần như "mù tịt" về cấu hình.
+A. Cấu hình trên Core Switch (Switch L2)
+•	Thực hiện: Không cấu hình gì cả (Zero Configuration).
+•	Lý do: Đây là mạng phẳng. Switch hoạt động ở chế độ Plug-and-Play (Cắm là chạy). Nó không có VLAN, không có Routing, không có IP. Nhiệm vụ duy nhất của nó là tự động học địa chỉ MAC của 69 thiết bị cắm vào và chuyển tiếp khung dữ liệu (Frame). Nếu nó nhận được gói tin Broadcast (ví dụ như ARP), nó sẽ tự động nhân bản và "hét" vào toàn bộ 69 cổng còn lại.
+B. Cấu hình trên 69 Hosts Nội bộ (Admin, Lab, Dorm, Server Local)
+Bạn phải cấu hình đủ 2 tham số mạng cơ bản trên từng máy:
+•	Tham số 1 (IP & Subnet Mask): Gán IP theo đúng quy hoạch vùng (ví dụ admin_1 là 10.0.1.1, lab_1 là 10.0.2.1...) nhưng bắt buộc tất cả phải xài chung Subnet Mask là /16 (255.255.0.0). Điều này báo cho các máy biết chúng đang ở chung một nhà, có thể nói chuyện trực tiếp với nhau qua Switch mà không cần Router.
+•	Tham số 2 (Default Gateway): Tất cả 69 máy phải được lệnh trỏ Default Gateway về IP cổng LAN của Router là 10.0.0.254. Định tuyến tĩnh (Static Route): ip route add default via 10.0.0.254.
+C. Cấu hình trên Edge Router (Gateway)
+Đây là thiết bị hoạt động ở Layer 3, bạn cần cấu hình các bước sau:
+•	Kích hoạt IP Forwarding: Bật tính năng định tuyến bên trong nhân Linux của thiết bị để nó cho phép gói tin xuyên từ cổng LAN sang cổng WAN (sysctl -w net.ipv4.ip_forward=1).
+•	Cấu hình Cổng LAN (Inside): Gán IP 10.0.0.254/16. Cổng này sẽ đón toàn bộ traffic nội bộ.
+•	Cấu hình Cổng WAN (Outside): Gán IP mạng ngoài, ví dụ 203.162.1.254/24.
+•	Bảng Định tuyến (Routing Table): Router đã biết mạng LAN (10.0.0.0/16) và mạng WAN (203.162.1.0/24) vì được cắm trực tiếp. Nếu môi trường phức tạp hơn, có thể cần thêm một đường Default Route trỏ ra Internet.
+D. Cấu hình trên Server HCM (Bên ngoài Campus)
+•	Gán IP: 203.162.1.1/24.
+•	Định tuyến ngược (Return Route): Máy chủ này cần biết cách gửi dữ liệu trả về mạng nội bộ của trường. Phải thêm một đường định tuyến: ip route add 10.0.0.0/16 via 203.162.1.254 (Trỏ về cổng WAN của Edge Router).
+________________________________________
+Sự khác biệt lớn nhất nằm ở việc thiết lập các tham số IP và Default Gateway trên hàng chục Host để mô phỏng chính xác môi trường Layer 2 rộng lớn.
+
+

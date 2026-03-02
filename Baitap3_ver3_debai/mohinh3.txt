@@ -1,0 +1,57 @@
+MÔ HÌNH 3: KIẾN TRÚC MẠNG SPINE-LEAF & VXLAN (DATA CENTER LITE)
+Khái quát: Thay vì tổ chức theo 3 lớp phân cấp có nguy cơ thắt cổ chai, toàn bộ vùng Lab AI và Server Local được tái cấu trúc thành mô hình Clos Topology (Spine-Leaf). Điểm mấu chốt của kiến trúc này là loại bỏ hoàn toàn giao thức STP ở Layer 2, thay bằng định tuyến Layer 3 (OSPF/BGP) trên mọi đường link vật lý (Underlay) và dùng VXLAN để tạo mạng ảo (Overlay).
+1. Quy hoạch Không gian Mạng: Underlay & Overlay
+Kiến trúc này tách biệt hạ tầng vật lý (đường truyền) và hạ tầng logic (mạng của người dùng).
+•	Mạng Underlay (Định tuyến vật lý): * Mỗi kết nối giữa một Spine và một Leaf là một mạng Subnet Point-to-Point riêng biệt (ví dụ: 10.100.1.0/30, 10.100.1.4/30).
+o	Tất cả các Switch (Spine và Leaf) đều chạy giao thức định tuyến động (OSPF hoặc BGP) để học đường đi của nhau. Sẽ không có khái niệm "khóa cổng" như STP.
+•	Mạng Overlay (VXLAN - Mạng ảo hóa):
+o	Các VLAN truyền thống (VLAN 10, 20, 30, 99) được ánh xạ thành các VNI (VXLAN Network Identifier) có không gian định danh khổng lồ (lên tới 16 triệu mạng).
+o	Gói tin của Sinh viên hoặc Admin khi vào Leaf Switch sẽ được "đóng gói" (Encapsulation) thêm một lớp Header của VXLAN/UDP trước khi ném vào mạng Underlay để di chuyển giữa các tòa nhà.
+2. Thiết kế Cấu trúc Liên kết (Topology Design)
+Quy tắc kết nối mạng mạng Spine-Leaf cực kỳ nghiêm ngặt nhưng mang lại hiệu năng tối đa:
+•	Lớp Leaf (Lá): Nơi kết nối các thiết bị đầu cuối (Máy Admin, PC Lab, Server).
+•	Lớp Spine (Xương sống): Đóng vai trò chuyển mạch tốc độ cực cao giữa các Leaf.
+•	Quy tắc Full-Mesh: * Mỗi Leaf Switch BẮT BUỘC phải có đường cáp nối trực tiếp đến TẤT CẢ các Spine Switch.
+o	KHÔNG CÓ đường nối ngang giữa Spine với Spine, hoặc Leaf với Leaf.
+•	Khoảng cách đồng đều: Từ bất kỳ PC nào đến bất kỳ PC nào khác (khác Leaf), luồng dữ liệu luôn chỉ đi qua đúng số lượng trạm (Hop count) cố định: Leaf -> Spine -> Leaf.
+
+1. Bảng Kê Thiết Bị (Bill of Materials)
+Cấu trúc phân lớp Core-Distribution-Access bị xóa bỏ hoàn toàn, thay vào đó là một mạng lưới hình lưới (Clos Topology) phẳng hơn và mở rộng theo chiều ngang. Hệ thống sẽ bao gồm khoảng 79 Node:
+•	Lớp Spine - Xương sống (2 Thiết bị):
+o	spine_1 và spine_2: Đóng vai trò làm trạm trung chuyển tốc độ cực cao. Không kết nối trực tiếp với bất kỳ PC hay Router nào.
+•	Lớp Leaf - Lá (6 Thiết bị):
+o	leaf_admin (1 Switch): Phục vụ vùng Hành chính.
+o	leaf_lab_1, leaf_lab_2 (2 Switch): Phục vụ 20 máy Lab AI.
+o	leaf_dorm_1, leaf_dorm_2 (2 Switch): Phục vụ 40 máy Ký túc xá.
+o	leaf_srv (1 Switch): Đóng vai trò vừa cắm Server Local, vừa làm Border Leaf cắm ra Edge Router.
+•	Edge Router (1 Thiết bị):
+o	Cắm vào leaf_srv để định tuyến lưu lượng ra WAN (Server HCM).
+•	70 x Hosts: Vẫn giữ nguyên 69 máy nội bộ và 1 máy Server HCM.
+________________________________________
+2. Chi tiết Kết nối và Băng thông (Links & Bandwidth)
+Quy tắc cắm cáp của Spine-Leaf là luật "bất di bất dịch", cấm làm sai:
+•	Quy tắc Full-Mesh (Leaf nối lên Spine): Mỗi con Leaf BẮT BUỘC phải cắm 1 sợi cáp lên spine_1 và 1 sợi cáp lên spine_2. Tuyệt đối không có cáp nối giữa Leaf với Leaf, hay Spine với Spine.
+o	Băng thông Leaf <-> Spine: 1 Gbps (Mỗi Leaf sẽ có tổng Uplink là 2 Gbps chạy song song).
+•	Từ Host -> Leaf (Access): * Admin: 100 Mbps | Lab AI: 1 Gbps | Dorm: 50 Mbps | Server Local: 1 Gbps.
+•	Từ Border Leaf -> Edge Router: 1 Gbps.
+•	Từ Edge Router -> Server HCM (WAN): Nút thắt cổ chai 200 Mbps, delay 10ms.
+________________________________________
+3. Cấu hình Chi tiết (Configuration Checklist)
+Đây là mô hình có độ phức tạp cấu hình cao nhất, vì nó tách mạng ra làm 2 lớp logic: Underlay (Vật lý) và Overlay (Ảo hóa).
+A. Cấu hình Mạng Nền Vật lý (Underlay Network)
+Mục tiêu của mạng này là đảm bảo tất cả các Switch đều nhìn thấy nhau qua định tuyến Layer 3 (Loại bỏ hoàn toàn STP).
+•	IP Point-to-Point (P2P): Thay vì gán IP cho nguyên một mảng mạng, bạn phải gán IP cho TỪNG sợi cáp nối giữa Leaf và Spine (thường dùng Subnet /30). Ví dụ cổng cáp nối leaf_lab_1 và spine_1 sẽ có IP là 10.100.1.1 và 10.100.1.2.
+•	IP Loopback: Cấu hình cho mỗi Switch một địa chỉ Loopback (ví dụ leaf_lab_1 là 1.1.1.1/32, spine_1 là 2.2.2.2/32). Đây là định danh duy nhất không bao giờ "chết" của thiết bị.
+•	Giao thức Định tuyến (OSPF hoặc BGP): Bật OSPF/BGP trên tất cả Spine và Leaf. Chúng sẽ tự động học đường đi đến các IP Loopback của nhau.
+•	Cơ chế ECMP (Equal-Cost Multi-Path): Khi bật định tuyến động, Leaf sẽ nhận ra nó có 2 đường đi (qua spine_1 và spine_2) có chi phí (cost) bằng nhau để đến đích. Nó sẽ gộp cả 2 đường này lại để Load Balancing (Cân bằng tải). Đây chính là "chìa khóa vàng" phá vỡ sự giới hạn của STP ở Mô hình 2.
+B. Cấu hình Mạng Ảo hóa (Overlay Network - VXLAN)
+Underlay chỉ giúp các Switch thông đường, giờ bạn phải cấu hình VXLAN để bọc các gói tin của Sinh viên/Giảng viên lại.
+•	Tạo VTEP (VXLAN Tunnel Endpoint): Cấu hình các cổng Loopback trên Leaf thành các đầu mút đường hầm.
+•	Ánh xạ VLAN sang VNI: Khai báo quy tắc chuyển đổi trên Leaf. Ví dụ: Máy Admin thuộc VLAN 10, khi vào Leaf sẽ được đóng gói thành VXLAN Network Identifier (VNI) 10010. Máy Lab thuộc VLAN 20 -> VNI 20020.
+•	Anycast Gateway: Đây là một thủ thuật cực hay. Bạn cấu hình IP Gateway của phòng Lab (10.0.20.254) lên CẢ HAI Switch leaf_lab_1 và leaf_lab_2. Máy PC cắm vào Leaf nào cũng thấy Gateway ngay tại đó, không phải chạy vòng vèo đi tìm Router trung tâm nữa.
+C. Cấu hình trên 69 Hosts Nội bộ (Giữ nguyên như Mô hình 2)
+Sự tuyệt vời của VXLAN là "trong suốt" với người dùng. Các máy Admin, Lab, Dorm vẫn cấu hình IP và Subnet Mask /24 hệt như Mô hình 2. Chúng không hề biết gói tin của mình đang được bọc qua đường hầm VXLAN.
+D. Hiện tượng Load Balancing của ECMP (Điểm nhấn Bài Test)
+Khi cấu hình xong, bạn mở công cụ đo lường và chạy lệnh iperf đa luồng xả dữ liệu từ 20 máy Lab về cụm Server nội bộ.
+Do cấu trúc VXLAN và thuật toán ECMP ở Underlay, leaf_lab_1 sẽ không khóa bất kỳ cổng nào. Nó sẽ sử dụng thuật toán băm (Hashing) để chia đều 50% gói tin chạy qua spine_1 và 50% chạy qua spine_2. Tổng băng thông đo được sẽ nhảy vọt lên tối đa (gấp đôi so với Mô hình 2), giải quyết trọn vẹn thảm họa "Elephant Flow" gây nghẽn phần cứng.
+
