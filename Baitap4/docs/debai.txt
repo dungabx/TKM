@@ -1,0 +1,26 @@
+
+_ Tên bài tập: BÀI TẬP 4: XÂY DỰNG MẠNG TRUNG TÂM DỮ LIỆU ZERO TRUST TRÊN KIẾN TRÚC LEAF-SPINE 
+
+- PHẦN I: THÔNG TIN ĐỀ TÀI 
+_ Đề bài: Nghiên cứu và triển khai hạ tầng Data Center hiện đại sử dụng kiến trúc Leaf-Spine. Áp dụng mô hình bảo mật Zero Trust thông qua Micro-segmentation và giải quyết bài toán giao tiếp liên giao thức IPv4-IPv6. 
+_ Nhiệm vụ thực hiện 1: Khởi tạo mô hình Leaf-Spine trên Mininet, cấu hình OSPF Underlay để tối ưu hóa đường truyền ECMP. 
+_ Nhiệm vụ thực hiện 2: Triển khai Micro-segmentation: Thiết lập ACL riêng biệt cho từng máy chủ ảo (VM) để chặn tấn công ngang (East-West). 
+_ Nhiệm vụ thực hiện 3: Cấu hình NAT64 tại Gateway để các Server IPv6 nội bộ truy cập được tài nguyên IPv4 bên ngoài Internet. 
+_ Nhiệm vụ thực hiện 4: Xây dựng kịch bản Cân bằng tải: Tự động phân phối luồng dữ liệu trên các Spine Switch khi một đường truyền đạt ngưỡng bão hòa. 
+_ Kết quả đạt được 1: Mô hình mạng Leaf-Spine đạt hiệu suất cao với khả năng cân bằng tải ECMP. 
+_ Kết quả đạt được 2: Báo cáo thực nghiệm với các đồ thị Heatmap chứng minh các kết nối trái phép giữa các VM bị chặn đứng hoàn toàn. 
+_ Kết quả đạt được 3: Số liệu thống kê về tỉ lệ thành công và độ trễ của các phiên giao tiếp qua NAT64. 
+
+- PHẦN II: CẤU TRÚC NỘI DUNG BÁO CÁO 
+_ Chương 1: Kiến trúc Leaf-Spine và Xu hướng Data Center: Phân tích lý do chuyển đổi từ mô hình truyền thống sang Leaf-Spine. 
+_ Chương 2: Cấu hình OSPF và ECMP: Kỹ thuật tối ưu hóa băng thông đường truyền trục chính. 
+_ Chương 3: Bảo mật Zero Trust và Micro-segmentation: Chi tiết cách triển khai ACL mức độ "tế bào" để bảo vệ Server. 
+_ Chương 4: Chuyển đổi giao thức IPv4-IPv6 với NAT64: Thực nghiệm khả năng tương thích ngược của hệ thống IPv6. 
+_ Chương 5: Đánh giá hiệu năng và Kết luận: Phân tích bảng số liệu về Throughput và bảng quản lý sự cố mạng trong môi trường ảo hóa. 
+_ Yêu cầu nội dung - Đồ thị: Biểu đồ cột so sánh thời gian hội tụ của mạng khi một Spine Switch gặp sự cố. 
+_ Yêu cầu nội dung - Bảng kiểm soát: Danh sách các lỗ hổng bị chặn đứng bởi chính sách Micro-segmentation. 
+
+- LƯU Ý: YÊU CẦU KẾT QUẢ ĐẠT ĐƯỢC 
+_ Bảng so sánh IPv4 υς IPv6 (ULA): Thống kê hiệu suất chuyển đổi của NAT64 đối với các gói tin nội bộ. 
+_ Đồ thị Zero Trust: Biểu đồ nhiệt (Heatmap) thể hiện các nỗ lực truy cập trái phép bị ACL/Firewall chặn đứng giữa các phân đoạn siêu nhỏ. 
+_ Thống kê ECMP: Bảng dữ liệu về tỉ lệ phân bổ tải (Distribution Ratio) trên các đường truyền Spine-Leaf khi lưu lượng đạt ngưỡng cao. 

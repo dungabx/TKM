@@ -1,0 +1,18 @@
+- đầu tiên đọc file debai.txt để hiểu về yêu cầu của bài toán.
+- sau đó tham khảo logic_network trong thư mục image để có cái nhìn tổng quan về mô hình mạng lưu ý là tham khảo.
+- sau khi đọc xong bạn bắt đầu thực hiện chia ra thành các task nhỏ và thực hiện từng task một.
+- task 1: tạo file topology.py trong folder source để tạo mô hình mạng spine leaf + vxlan.
+- task 2: cấu hình OSPF để tối ưu hóa đường truyền ECMP.
+- task 3: triển khai Micro-segmentation: Thiết lập ACL riêng biệt cho từng máy chủ ảo (VM) để chặn tấn công ngang (East-West).
+- task 4: cấu hình NAT64 tại Gateway để các Server IPv6 nội bộ truy cập được tài nguyên IPv4 bên ngoài Internet.
+- task 5: xây dựng kịch bản Cân bằng tải: Tự động phân phối luồng dữ liệu trên các Spine Switch khi một đường truyền đạt ngưỡng bão hòa.
+- task 6: bạn cần tạo ra 1 tools dùng để thống kê số liệu và có đồ thị với nội dung như sau:
+– Bảng so sánh IPv4 vs IPv6 (ULA): Thống kê hiệu suất chuyển đổi của
+NAT64 đối với các gói tin nội bộ.
+– Đồ thị Zero Trust: Biểu đồ nhiệt (Heatmap) thể hiện các nỗ lực truy
+cập trái phép bị ACL/Firewall chặn đứng giữa các phân đoạn siêu nhỏ.
+– Thống kê ECMP: Bảng dữ liệu về tỉ lệ phân bổ tải (Distribution Ratio)
+trên các đường truyền Spine-Leaf khi lưu lượng đạt ngưỡng cao.
+- task 7: sau khi thực hiện xong tất cả các task trên bạn cần viết báo cáo latex với những yêu cầu của debai.txt ở phần cấu trúc nội dung báo cáo vào file main.tex trong folder docs/report. 
+
+
